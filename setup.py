@@ -27,11 +27,12 @@ setuptools.setup(
     author_email="adrian.piney@unican.es",
     description="Add Fixed Asset Parameter to every new Part created",
     long_description=long_description,
-    long_description_content_type='text/markdown',license="MIT",
+    long_description_content_type='text/markdown',
+    license="MIT",
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=[
-        # Enter your plugin library dependencies here
+        "inventree>=0.17.0"
     ],
     setup_requires=[
         "wheel",
@@ -40,7 +41,8 @@ setuptools.setup(
     python_requires=">=3.9",
     entry_points={
         "inventree_plugins": [
-            "FixedAssetPlugin = fixed_asset_plugin.core:FixedAssetPlugin"
+            # "FixedAssetPlugin = fixed_asset_plugin.core:FixedAssetPlugin"
+            "fixed-asset-plugin = fixed_asset_plugin.core:FixedAssetPlugin"
         ]
     },
 )
