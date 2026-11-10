@@ -1,16 +1,17 @@
 """Add Fixed Asset Parameter to every new Part created"""
 
-from plugin import InvenTreePlugin
-
-from plugin.mixins import EventMixin
-
-from part.models import Part, PartParameter, PartParameterTemplate
-
-from . import PLUGIN_VERSION
-
 import logging
 from typing import Optional
-# import os
+
+from django.contrib.contenttypes.models import ContentType
+
+from plugin import InvenTreePlugin
+from plugin.mixins import EventMixin
+
+from common.models import Parameter, ParameterTemplate
+from part.models import Part
+
+from . import PLUGIN_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -29,59 +30,42 @@ class FixedAssetPlugin(EventMixin, InvenTreePlugin):
     LICENSE = "MIT"
 
     # Variables
-
     TEMPLATE_NAME = "Fixed Asset"
-    # TEMPLATE_ID = ""
 
-    # Optionally specify supported InvenTree versions
-    # MIN_VERSION = '0.18.0'
-    # MAX_VERSION = '2.0.0'
+    # InvenTree 1.2.0 replaced PartParameter / PartParameterTemplate
+    # with the generic common.models.Parameter / ParameterTemplate
+    MIN_VERSION = '1.2.0'
 
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(f"plugin.{self.SLUG}")
-        try:
-           self.template = PartParameterTemplate.objects.get(name=self.TEMPLATE_NAME)
 
-        except PartParameterTemplate.DoesNotExist:
-            self.template = None
-            logger.error(f"Template {self.TEMPLATE_NAME} not found")
-           
+    def _get_template(self) -> Optional[ParameterTemplate]:
+        """Look up the parameter template (lazily, so it is never stale)."""
+        template = ParameterTemplate.objects.filter(name=self.TEMPLATE_NAME).first()
 
-    #    Configure custom logger to write to file
-    #    log_dir = '/home/inventree/data/log'
-    #    os.makedirs(log_dir, exist_ok=True)
-    #    log_file = os.path.join(log_dir, 'fixed_asset_plugin.log')
+        if template is None:
+            self.logger.error(f"Template '{self.TEMPLATE_NAME}' not found")
 
-    #    self.logger = logging.getLogger(self.NAME)
-    #    self.logger.setLevel(logging.INFO)
+        return template
 
-    #    file_handler = logging.FileHandler(log_file)
-    #    file_handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
-
-    #    # Prevent duplicate handlers on reload
-    #    if not self.logger.handlers:
-    #        self.logger.addHandler(file_handler)
-    #  =============================================
-    
     def _get_part_from_event(self, *, args, kwargs) -> Optional[Part]:
         if kwargs.get('model') != 'Part':
             return None
-        
+
         pid = kwargs.get('id')
         if pid is not None:
             return Part.objects.filter(pk=pid).first()
         return None
-
 
     # Respond to InvenTree events (from EventMixin)
     # Ref: https://docs.inventree.org/en/stable/extend/plugins/event/
     def wants_process_event(self, event: str) -> bool:
         """Return True if the plugin wants to process the given event."""
         return event == 'part_part.created'
-    
+
     def process_event(self, event: str, *args, **kwargs) -> None:
-        
+
         # Check de los args para comprobar datos
         self.logger.debug(f"fixed-asset-plugin args={args}, kwargs={kwargs}")
 
@@ -90,21 +74,24 @@ class FixedAssetPlugin(EventMixin, InvenTreePlugin):
         if not part:
             self.logger.debug("Ignoring event: not a Part or not ID")
             return
-        
-        if not self.template:
+
+        template = self._get_template()
+
+        if not template:
             return
-        
-        if PartParameter.objects.filter(part=part, template=self.template).exists():
-            self.logger.debug(f"Part {part.pk} ya tiene '{self.template.name}'")
+
+        if part.parameters_list.filter(template=template).exists():
+            self.logger.debug(f"Part {part.pk} ya tiene '{template.name}'")
             return
-        
+
         try:
-            PartParameter.objects.create(
-                part=part,
-                template=self.template,
-                data=False
+            Parameter.objects.create(
+                model_type=ContentType.objects.get_for_model(Part),
+                model_id=part.pk,
+                template=template,
+                data="False",
             )
-            self.logger.info(f"Added '{self.template.name}' parameter to Part {part.pk}")
+            self.logger.info(f"Added '{template.name}' parameter to Part {part.pk}")
 
         except Exception as e:
             self.logger.error(f"Error adding parameter: {e}")

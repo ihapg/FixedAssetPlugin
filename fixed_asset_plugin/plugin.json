@@ -1,6 +1,6 @@
 {
   "name": "FixedAssetPlugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "slug": "fixed-asset-plugin",
   "description": "Add Fixed Asset Parameter to every new Part created",
   "author": "Adrian Piney Gutierrez",
